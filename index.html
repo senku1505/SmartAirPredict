@@ -5,14 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SmartAir Predict Dashboard</title>
-
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
-
-    <!-- Main Stylesheet -->
     <link rel="stylesheet" href="style.css">
-
-    <!-- Chart.js for data visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -20,7 +14,6 @@
     <div class="ambient-bg"></div>
     <div class="app-container">
 
-        <!-- Header Section -->
         <header>
             <div class="logo">
                 <div class="glow-orb"></div>
@@ -29,19 +22,16 @@
             <p class="subtitle">Real-time IoT Air Quality Monitoring</p>
         </header>
 
-        <!-- Alert Banner (Hidden by default) -->
         <div id="alert-banner" class="alert-banner hidden">
-            ⚠️ WARNING: Poor Air Quality Predicted! Please take precautions.
+            WARNING: Poor Air Quality Predicted! Please take precautions.
         </div>
 
-        <!-- Dashboard Grid -->
         <main class="dashboard">
 
-            <!-- Real-time Metrics Layer -->
             <section class="metrics-grid">
 
                 <div class="metric-card glass-panel" id="card-temp">
-                    <div class="card-icon">🌡️</div>
+                    <div class="card-icon">T</div>
                     <div class="card-info">
                         <h3>Temperature</h3>
                         <div class="value-display"><span id="val-temp">--</span>°C</div>
@@ -49,7 +39,7 @@
                 </div>
 
                 <div class="metric-card glass-panel" id="card-humidity">
-                    <div class="card-icon">💧</div>
+                    <div class="card-icon">H</div>
                     <div class="card-info">
                         <h3>Humidity</h3>
                         <div class="value-display"><span id="val-humidity">--</span>%</div>
@@ -57,7 +47,7 @@
                 </div>
 
                 <div class="metric-card glass-panel" id="card-gas">
-                    <div class="card-icon">💨</div>
+                    <div class="card-icon">G</div>
                     <div class="card-info">
                         <h3>Gas (MQ135)</h3>
                         <div class="value-display"><span id="val-gas">--</span> AQI</div>
@@ -65,7 +55,7 @@
                 </div>
 
                 <div class="metric-card glass-panel highlight-card" id="card-aqi">
-                    <div class="card-icon">🌍</div>
+                    <div class="card-icon">AQI</div>
                     <div class="card-info">
                         <h3>Current AQI</h3>
                         <div class="value-display"><span id="val-aqi">--</span></div>
@@ -74,10 +64,8 @@
                 </div>
             </section>
 
-            <!-- Middle Section: Chart and Prediction -->
             <section class="analytics-grid">
 
-                <!-- Main Historical Chart -->
                 <div class="chart-container glass-panel">
                     <div class="panel-header">
                         <h2>Air Quality Trends</h2>
@@ -90,7 +78,6 @@
                     </div>
                 </div>
 
-                <!-- Live AQI Panel -->
                 <div class="prediction-panel glass-panel" id="panel-prediction">
                     <div class="panel-header">
                         <h2>Live AQI (Indian Standard)</h2>
@@ -109,39 +96,32 @@
 
             </section>
 
-            <!-- Historical Data Section -->
             <section class="historical-section" id="historical-section">
                 <div class="glass-panel historical-panel">
                     <div class="panel-header">
-                        <h2>📍 Historical Data by Location</h2>
+                        <h2>Historical Data by Location</h2>
                         <span class="ml-badge">6-Hour Recording Sessions</span>
                     </div>
 
-                    <!-- Location Tabs -->
                     <div class="location-tabs">
                         <button class="location-tab active" data-location="wadala" id="tab-wadala">
-                            <span class="tab-icon">🏙️</span>
                             <span class="tab-name">Wadala</span>
                             <span class="tab-sub">Central Mumbai</span>
                         </button>
                         <button class="location-tab" data-location="bandra" id="tab-bandra">
-                            <span class="tab-icon">🌊</span>
                             <span class="tab-name">Bandra</span>
                             <span class="tab-sub">Western Mumbai</span>
                         </button>
                         <button class="location-tab" data-location="kalyan" id="tab-kalyan">
-                            <span class="tab-icon">🏭</span>
                             <span class="tab-name">Kalyan</span>
                             <span class="tab-sub">Thane District</span>
                         </button>
                     </div>
 
-                    <!-- Historical Chart -->
                     <div class="canvas-wrapper historical-canvas">
                         <canvas id="historicalChart"></canvas>
                     </div>
 
-                    <!-- Data Summary -->
                     <div class="historical-summary" id="historical-summary">
                         <div class="summary-card">
                             <span class="summary-label">Avg AQI</span>
@@ -169,9 +149,8 @@
                         </div>
                     </div>
 
-                    <!-- Data Table Toggle -->
                     <button class="table-toggle" id="toggle-table">
-                        📊 Show Raw Data Table
+                        Show Raw Data Table
                     </button>
                     <div class="data-table-wrapper hidden" id="data-table-wrapper">
                         <table class="data-table" id="historical-table">
@@ -191,20 +170,17 @@
                 </div>
             </section>
 
-            <!-- 1-Week Prediction Section -->
             <section class="prediction-section" id="prediction-section">
                 <div class="glass-panel prediction-forecast-panel">
                     <div class="panel-header">
-                        <h2>🔮 1-Week AQI Forecast</h2>
+                        <h2>1-Week AQI Forecast</h2>
                         <span class="ml-badge">Linear Regression Model</span>
                     </div>
 
-                    <!-- Prediction Chart -->
                     <div class="canvas-wrapper historical-canvas">
                         <canvas id="predictionChart"></canvas>
                     </div>
 
-                    <!-- Prediction Summary -->
                     <div class="historical-summary" id="prediction-summary">
                         <div class="summary-card">
                             <span class="summary-label">Avg Predicted AQI</span>
@@ -233,13 +209,6 @@
         </footer>
 
     </div>
-
-    <!-- Firebase SDK (v8 compat for simplicity in vanilla JS) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-    <!-- Main Application Logic -->
-    <script src="app.js"></script>
 </body>
 
 </html>
