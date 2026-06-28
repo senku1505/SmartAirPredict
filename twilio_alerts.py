@@ -6,8 +6,13 @@ from twilio.rest import Client
 
 # =================================================================
 # SmartAir Alert System — Twilio SMS Integration
-# Monitors Firebase Realtime Database and sends SMS if AQI > 50
+# Monitors Firebase Realtime Database and sends an SMS when AQI
+# crosses the ALERT_THRESHOLD (Indian Standard CPCB scale).
 # =================================================================
+
+# AQI level at which we fire an SMS — 100 = start of 'Moderate' range
+# Tweak this to your preference (e.g. 200 for 'Poor' only)
+ALERT_THRESHOLD = 100
 
 # 1. FIREBASE CONFIGURATION
 # Using the REST API URL from app.js
@@ -48,17 +53,23 @@ def calculate_indian_aqi(raw_value, temperature, humidity):
     return round(max(0, min(500, aqi)))
 
 def send_sms_alert(aqi_value):
-    """Sends SMS via Twilio API"""
+    """Sends an SMS via Twilio."""
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
+        print("\u26a0\ufe0f  SMS skipped — Twilio credentials not set. Check your .env file.")
+        return
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         message = client.messages.create(
-            body=f"⚠️ SmartAir Alert: AQI is {aqi_value} (>50). The air quality is reaching 'Satisfactory/Moderate' levels. Please check the dashboard.",
+            body=(
+                f"\u26a0\ufe0f SmartAir Alert: AQI is {aqi_value} (threshold: {ALERT_THRESHOLD}). "
+                f"Air quality has reached Moderate or worse. Check the dashboard."
+            ),
             from_=TWILIO_FROM_NUMBER,
-            to=TO_PHONE_NUMBER
+            to=TO_PHONE_NUMBER,
         )
-        print(f"✅ SMS Sent Successfully! SID: {message.sid}")
+        print(f"\u2705 SMS sent! SID: {message.sid}")
     except Exception as e:
-        print(f"❌ Failed to send SMS: {e}")
+        print(f"\u274c Failed to send SMS: {e}")
 
 def monitor_loop():
     print("🚀 SmartAir Alert System is now running...")
@@ -91,12 +102,11 @@ def monitor_loop():
                     
                     print(f"[{time.strftime('%H:%M:%S')}] New Reading - Raw: {raw_aq}, Temp: {temp}C, Hum: {hum}%, AQI: {aqi}")
 
-                    if aqi > 50:
-                        print(f"🚨 ALERT: AQI {aqi} is over threshold 50!")
-                        if TWILIO_ACCOUNT_SID != 'AC_YOUR_ACCOUNT_SID_HERE':
-                            send_sms_alert(aqi)
-                        else:
-                            print("⚠️ SMS skipped: Twilio credentials not configured.")
+                    if aqi > ALERT_THRESHOLD:
+                        print(f"\U0001f6a8 ALERT: AQI {aqi} crossed threshold {ALERT_THRESHOLD}!")
+                        send_sms_alert(aqi)
+                    else:
+                        print(f"[{time.strftime('%H:%M:%S')}] AQI {aqi} — below threshold, no alert.")
                     
                     last_checked_key = key
                 else:
