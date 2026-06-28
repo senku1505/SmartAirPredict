@@ -1,3 +1,33 @@
+"""
+SmartAir Predict - Machine Learning Model Trainer
+─────────────────────────────────────────────────────────────────────────────
+Description:
+  This script trains a Linear Regression model to forecast ambient air quality
+  (Indian Standard CPCB AQI) based on atmospheric inputs and gas sensor readings.
+  The model output parameters are used by the dashboard's client-side forecast engine.
+
+Data Ingestion & Integration:
+  1. Local Datasets: Loads CSV logs generated for monitored locations (Wadala,
+     Bandra, and Kalyan) from the data/ folder.
+  2. Live API: Queries the Open-Meteo Weather and Air Quality REST APIs for 
+     historical outdoor records over the past 7 days.
+  3. Feature Extraction: Combines local and global records. Calculates raw MQ135
+     equivalents from API CO/PM2.5 measurements to ensure model alignment.
+
+Processing Pipeline:
+  - Temperature/Humidity Compensation: Sensor readings fluctuate based on ambient
+    humidity and temperature. We apply an adjustment factor to offset this.
+  - CPCB Breakpoint Mapping: Maps estimated PM2.5 values into the official
+    Indian National Air Quality Index (NAQI) categories.
+
+Model Training & Evaluation:
+  - Features: Temperature, Humidity, Hour of day, and Raw MQ135 sensor readings.
+  - Target: Calculated Indian Standard CPCB AQI.
+  - Split: 80% training set, 20% test validation set.
+  - Model: Ordinary Least Squares Linear Regression.
+  - Verification: Computes R2 score and Root Mean Squared Error (RMSE) to track accuracy.
+"""
+
 import numpy as np
 import pandas as pd
 import requests
@@ -38,6 +68,7 @@ def fetch_api_data(name, lat, lon, days_back=7):
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
 
+    # Pull hourly temperature, humidity, carbon monoxide, and PM2.5 fields from Open-Meteo
     weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relative_humidity_2m&timezone=Asia%2FKolkata&start_date={start_date}&end_date={end_date}"
     aq_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&hourly=pm2_5,pm10,carbon_monoxide&timezone=Asia%2FKolkata&start_date={start_date}&end_date={end_date}"
 
@@ -54,6 +85,7 @@ def fetch_api_data(name, lat, lon, days_back=7):
             'location': name
         }).dropna()
 
+        # Map API CO and PM2.5 readings back to raw MQ135 values for linear training consistency
         df['mq135_raw'] = (df['carbon_monoxide'] * 1.2) + (df['pm25'] * 5.0)
         df['hour'] = pd.to_datetime(weather['hourly']['time'][:len(df)]).hour
         df['aqi'] = df.apply(lambda r: calculate_indian_aqi(r['mq135_raw'], r['temperature'], r['humidity']), axis=1)

@@ -1,3 +1,10 @@
+/**
+ * generate_csvs.js
+ * 
+ * Generates synthetic historical CSV records for Wadala, Bandra, and Kalyan
+ * based on hourly weather/air-quality anchors to facilitate local model training.
+ */
+
 'use strict';
 
 const fs = require('fs');
@@ -30,6 +37,7 @@ function lerp(a, b, t) {
     return a + (b - a) * t;
 }
 
+// Park-Miller LCG PRNG for reproducible sensor noise simulation
 function seededRandom(seed) {
     let s = seed;
     return function () {
@@ -74,6 +82,7 @@ function generateCSV(locationKey, seed) {
         const temp = baseTemp + (rng() - 0.5) * 0.6;
         const humidity = Math.max(8, Math.min(99, baseHumidity + (rng() - 0.5) * 3.0));
 
+        // Generate synthetic MQ135 reading matching the carbon monoxide and PM2.5 profiles
         let mq135 = (baseCO * 1.2) + (basePM25 * 5.0) + offset + (rng() - 0.5) * 40;
         if (rng() > 0.97) mq135 += 60 + rng() * 100;
         mq135 = Math.max(150, Math.min(3500, Math.round(mq135)));

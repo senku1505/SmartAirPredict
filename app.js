@@ -1,3 +1,10 @@
+/**
+ * SmartAir Predict Dashboard Logic
+ * 
+ * Manages Firebase RTDB listeners, updates the Chart.js real-time graph,
+ * calculates Indian Standard AQI values, and generates the 7-day linear regression predictions.
+ */
+
 const firebaseConfig = {
     databaseURL: "https://mart-fe8d0-default-rtdb.firebaseio.com"
 };
@@ -256,6 +263,7 @@ const LOCATION_DATA = {
     kalyan: generateLocationData('kalyan', 27182)
 };
 
+// Calculates AQI and compensates for temperature/humidity differences
 function calculateIndianAQI(rawValue, temperature, humidity) {
     const tempCorrection = 0.008 * (temperature - 25);
     const humCorrection = 0.005 * (humidity - 50);
@@ -290,6 +298,7 @@ function getAQIStatusCalc(aqiValue) {
     return { text: 'SEVERE', hex: '#ff0055' };
 }
 
+// Generates predictions for tomorrow using model-derived regression coefficients
 function generatePredictions(locationKey) {
     const historical = LOCATION_DATA[locationKey];
     const real = REAL_HOURLY[locationKey];

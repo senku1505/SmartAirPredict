@@ -1,8 +1,32 @@
 /*
- * SmartAir ESP32 Sensor Node
+ * SmartAir ESP32 Sensor Node (Firmware)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Overview:
+ *   This sketch runs on an ESP32 microcontroller acting as an edge IoT node.
+ *   It collects atmospheric readings (ambient temperature and relative humidity)
+ *   via a DHT22 sensor and raw volatile organic compound/gas concentration levels
+ *   via an MQ135 sensor.
  * 
- * Reads raw air quality values from an MQ135 sensor and temperature/humidity
- * from a DHT22 sensor, then uploads them to Firebase Realtime Database.
+ * Hardware Pin Mapping:
+ *   - MQ135 Analog Out -> GPIO Pin 34 (configured as analog input).
+ *   - DHT22 Data Pin   -> GPIO Pin 15 (configured with internal pullup).
+ * 
+ * Execution Flow:
+ *   1. Hardware Initialization: Initializes serial communications (115200 baud)
+ *      and starts the DHT sensor.
+ *   2. Network Connection: Establishes a Wi-Fi link using credentials defined
+ *      in the secrets.h configuration header.
+ *   3. Clock Sync (NTP): Connects to global NTP pool servers to sync the system
+ *      time. Configures a timezone offset of +5.5 hours (19800 seconds) for
+ *      Indian Standard Time (IST). This is critical for database logging keys.
+ *   4. Firebase Initialization: Configures the database URL and credentials
+ *      legacy auth tokens to prepare the HTTP payload transmitter client.
+ *   5. Main Monitor Loop (runs every 5 seconds):
+ *      - Performs analog and digital sensor reads.
+ *      - Outputs the formatted values to the Serial Monitor for local diagnostics.
+ *      - Construct a JSON payload container (with sensor metrics and raw air quality).
+ *      - Computes database path with Unix epoch timestamp in milliseconds.
+ *      - Performs an HTTP PUT operation to write logs directly to the database.
  */
 
 #include <DHT.h>
