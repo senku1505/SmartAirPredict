@@ -1,0 +1,281 @@
+import numpy as np
+import pandas as pd
+import requests
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from datetime import datetime, timedelta
+
+# ============================================
+# SmartAir Predict — ML Model Training & Prediction
+# Trains on: (1) Real Open-Meteo API data + (2) Local CSV historical data
+# ============================================
+
+LOCATIONS = {
+    'Wadala': {'lat': 19.0178, 'lon': 72.8575},
+    'Bandra': {'lat': 19.0544, 'lon': 72.8264},
+    'Kalyan': {'lat': 19.2437, 'lon': 73.1355}
+}
+
+CSV_FILES = {
+    'Wadala': 'historical_data_wadala.csv',
+    'Bandra': 'historical_data_bandra.csv',
+    'Kalyan': 'historical_data_kalyan.csv'
+}
+
+# AQI calculation (same as app.js)
+def calculate_indian_aqi(raw_value, temperature, humidity):
+    temp_corr = 0.008 * (temperature - 25)
+    hum_corr = 0.005 * (humidity - 50)
+    factor = 1.0 + temp_corr + hum_corr
+    adjusted = raw_value / factor
+    conc = max(0, (adjusted - 200) * 0.11)
+
+    if conc <= 30:   return round((conc / 30) * 50)
+    elif conc <= 60: return round(51 + ((conc - 30) / 30) * 49)
+    elif conc <= 90: return round(101 + ((conc - 60) / 30) * 99)
+    elif conc <= 120: return round(201 + ((conc - 90) / 30) * 99)
+    elif conc <= 250: return round(301 + ((conc - 120) / 130) * 99)
+    else:            return round(401 + ((conc - 250) / 130) * 99)
+
+
+def fetch_api_data(name, lat, lon, days_back=7):
+    """Fetch real data from Open-Meteo API."""
+    print(f"  📡 Fetching API data for {name}...")
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+
+    weather_url = (
+        f"https://api.open-meteo.com/v1/forecast?"
+        f"latitude={lat}&longitude={lon}&"
+        f"hourly=temperature_2m,relative_humidity_2m&"
+        f"timezone=Asia%2FKolkata&"
+        f"start_date={start_date}&end_date={end_date}"
+    )
+    aq_url = (
+        f"https://air-quality-api.open-meteo.com/v1/air-quality?"
+        f"latitude={lat}&longitude={lon}&"
+        f"hourly=pm2_5,pm10,carbon_monoxide&"
+        f"timezone=Asia%2FKolkata&"
+        f"start_date={start_date}&end_date={end_date}"
+    )
+
+    try:
+        weather = requests.get(weather_url, timeout=10).json()
+        aq = requests.get(aq_url, timeout=10).json()
+    except Exception as e:
+        print(f"  ⚠️  API fetch failed for {name}: {e}")
+        return None
+
+    n = min(len(weather['hourly']['temperature_2m']),
+            len(aq['hourly']['pm2_5']))
+
+    df = pd.DataFrame({
+        'temperature': weather['hourly']['temperature_2m'][:n],
+        'humidity': weather['hourly']['relative_humidity_2m'][:n],
+        'pm25': aq['hourly']['pm2_5'][:n],
+        'carbon_monoxide': aq['hourly']['carbon_monoxide'][:n],
+        'location': name
+    }).dropna()
+
+    df['mq135_raw'] = (df['carbon_monoxide'] * 1.2) + (df['pm25'] * 5.0)
+    df['hour'] = pd.to_datetime(weather['hourly']['time'][:len(df)]).hour
+    df['aqi'] = df.apply(lambda r: calculate_indian_aqi(r['mq135_raw'], r['temperature'], r['humidity']), axis=1)
+
+    print(f"  ✅ {len(df)} API data points for {name}")
+    return df
+
+
+def load_csv_data():
+    """Load the 3 CSV historical files."""
+    all_csv = []
+    for name, fname in CSV_FILES.items():
+        path = os.path.join(os.path.dirname(__file__) or '.', fname)
+        if not os.path.exists(path):
+            print(f"  ⚠️  {fname} not found, skipping")
+            continue
+        df = pd.read_csv(path)
+        df.columns = df.columns.str.strip()
+        # Rename to standard names
+        col_map = {
+            'Air Quality (Raw MQ135)': 'mq135_raw',
+            'AQI (Indian Std)': 'aqi',
+            'Temperature (C)': 'temperature',
+            'Humidity (%)': 'humidity',
+            'Location': 'location',
+            'Timestamp': 'timestamp'
+        }
+        df = df.rename(columns=col_map)
+        # Extract hour from timestamp string
+        df['hour'] = pd.to_datetime(df['timestamp'], format='mixed').dt.hour
+        all_csv.append(df)
+        print(f"  ✅ Loaded {fname}: {len(df)} rows")
+
+    if all_csv:
+        return pd.concat(all_csv, ignore_index=True)
+    return None
+
+
+def main():
+    print("=" * 60)
+    print("🌍 SmartAir Predict — ML Model Training")
+    print("   Training on CSV + Open-Meteo Real Data")
+    print("=" * 60)
+
+    # =========================================
+    # 1. Load CSV data
+    # =========================================
+    print("\n📂 Loading CSV historical data...\n")
+    csv_data = load_csv_data()
+
+    # =========================================
+    # 2. Fetch API data
+    # =========================================
+    print("\n📥 Fetching Open-Meteo API data...\n")
+    api_data = []
+    for name, coords in LOCATIONS.items():
+        df = fetch_api_data(name, coords['lat'], coords['lon'])
+        if df is not None:
+            api_data.append(df)
+
+    api_combined = pd.concat(api_data, ignore_index=True) if api_data else None
+
+    # =========================================
+    # 3. Combine and train
+    # =========================================
+    datasets = [d for d in [csv_data, api_combined] if d is not None]
+    if not datasets:
+        print("❌ No data available!")
+        return
+
+    # Use common columns for training
+    common_cols = ['temperature', 'humidity', 'hour', 'mq135_raw', 'aqi', 'location']
+    for d in datasets:
+        for col in common_cols:
+            if col not in d.columns:
+                if col == 'aqi':
+                    d['aqi'] = d.apply(lambda r: calculate_indian_aqi(r['mq135_raw'], r['temperature'], r['humidity']), axis=1)
+
+    combined = pd.concat(datasets, ignore_index=True)
+    combined = combined.dropna(subset=['temperature', 'humidity', 'mq135_raw', 'aqi'])
+    print(f"\n📊 Total combined dataset: {len(combined)} data points")
+
+    # =========================================
+    # 4. Train Linear Regression — Predict AQI
+    # =========================================
+    print("\n🧠 Training Linear Regression Model...")
+    print("-" * 40)
+
+    features = ['temperature', 'humidity', 'hour', 'mq135_raw']
+    X = combined[features]
+    y = combined['aqi']  # Target: calculated Indian Standard AQI
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    # =========================================
+    # 5. Accuracy Metrics
+    # =========================================
+    y_pred = model.predict(X_test)
+
+    r2 = r2_score(y_test, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    mae = mean_absolute_error(y_test, y_pred)
+    mape = np.mean(np.abs((y_test - y_pred) / np.where(y_test == 0, 1, y_test))) * 100
+
+    print(f"\n{'='*50}")
+    print(f"  📈 MODEL PERFORMANCE METRICS")
+    print(f"{'='*50}")
+    print(f"  R² Score:              {r2:.4f}")
+    print(f"  RMSE:                  {rmse:.2f}")
+    print(f"  MAE:                   {mae:.2f}")
+    print(f"  MAPE:                  {mape:.2f}%")
+    print(f"  Prediction Accuracy:   {100 - mape:.2f}%")
+    print(f"{'='*50}")
+
+    # What R² means
+    if r2 >= 0.95:
+        r2_desc = "Excellent — model explains 95%+ of variance"
+    elif r2 >= 0.85:
+        r2_desc = "Good — model explains 85%+ of variance"
+    elif r2 >= 0.70:
+        r2_desc = "Moderate — model captures the main trend"
+    else:
+        r2_desc = "Weak — model has limited predictive power"
+    print(f"  Interpretation:        {r2_desc}")
+
+    # What RMSE means
+    print(f"\n  RMSE = {rmse:.2f} means the model's predictions")
+    print(f"  are off by ~{rmse:.0f} AQI points on average (larger")
+    print(f"  errors are penalized more heavily by RMSE vs MAE).")
+
+    # =========================================
+    # 6. Model Coefficients
+    # =========================================
+    weights = model.coef_
+    intercept = model.intercept_
+
+    print(f"\n🚀 TRAINED MODEL COEFFICIENTS")
+    print("-" * 40)
+    print("  AQI = ", end="")
+    for i, (fname, w) in enumerate(zip(features, weights)):
+        sign = "+" if w >= 0 else "-"
+        if i == 0:
+            print(f"{w:.4f}×{fname}", end=" ")
+        else:
+            print(f"{sign} {abs(w):.4f}×{fname}", end=" ")
+    print(f"+ {intercept:.4f}")
+
+    # =========================================
+    # 7. Per-Location Stats
+    # =========================================
+    print(f"\n\n📍 PER-LOCATION SUMMARY")
+    print("-" * 60)
+
+    for name in LOCATIONS.keys():
+        loc = combined[combined['location'] == name]
+        if len(loc) == 0:
+            continue
+        print(f"\n  📍 {name}:")
+        print(f"     Data Points:    {len(loc)}")
+        print(f"     Avg Temp:       {loc['temperature'].mean():.1f}°C")
+        print(f"     Avg Humidity:   {loc['humidity'].mean():.1f}%")
+        print(f"     Avg MQ135 Raw:  {loc['mq135_raw'].mean():.0f}")
+        print(f"     Avg AQI:        {loc['aqi'].mean():.0f}")
+        print(f"     Peak AQI:       {loc['aqi'].max():.0f}")
+
+    # =========================================
+    # 8. Report-ready summary
+    # =========================================
+    print(f"\n\n{'='*60}")
+    print("📝 COPY-PASTE FOR YOUR REPORT")
+    print(f"{'='*60}")
+    print(f"""
+The SmartAir IoT system uses an MQ135 gas sensor and DHT11
+temperature/humidity sensor connected to an ESP32 microcontroller.
+
+Sensor readings are transmitted over WiFi to Firebase Realtime
+Database and visualized on a web dashboard in real-time.
+
+A Linear Regression model was trained on {len(combined)} data points
+from 3 Mumbai locations (Wadala, Bandra, Kalyan) using real
+atmospheric data from Open-Meteo API and field-recorded CSV data.
+
+Model Performance:
+  • R² Score:        {r2:.4f} ({r2_desc})
+  • RMSE:            {rmse:.2f} AQI points
+  • MAE:             {mae:.2f} AQI points
+  • Accuracy:        {100 - mape:.2f}%
+
+The model enables 1-week hourly AQI forecasts calibrated
+against CPCB Indian National Air Quality Index breakpoints.
+""")
+
+
+if __name__ == "__main__":
+    main()
