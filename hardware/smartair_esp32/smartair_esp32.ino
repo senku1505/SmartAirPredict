@@ -1,3 +1,10 @@
+/*
+ * SmartAir ESP32 Sensor Node
+ * 
+ * Reads raw air quality values from an MQ135 sensor and temperature/humidity
+ * from a DHT22 sensor, then uploads them to Firebase Realtime Database.
+ */
+
 #include <DHT.h>
 #include <FirebaseESP32.h>
 #include <WiFi.h>
@@ -15,6 +22,7 @@ FirebaseData   fbdo;
 FirebaseAuth   auth;
 FirebaseConfig config;
 
+// Maps raw analog MQ135 reading to basic descriptive levels
 String getRawStatus(int rawValue) {
     if (rawValue <= 800)  return "Good";
     if (rawValue <= 1500) return "Moderate";
@@ -35,6 +43,7 @@ void setup() {
     }
     Serial.println("\nWi-Fi connected. IP: " + WiFi.localIP().toString());
 
+    // 19800 seconds = 5h 30m offset for Indian Standard Time (IST)
     configTime(19800, 0, "pool.ntp.org", "time.nist.gov");
     Serial.print("Syncing time via NTP");
     time_t now = time(nullptr);
@@ -67,6 +76,7 @@ void loop() {
         Serial.println("DHT read failed");
     }
 
+    // Appending "000" converts seconds to milliseconds without requiring 64-bit int support
     time_t now = time(nullptr);
     String path = "/AQI_Logs/" + String((unsigned long)now) + "000";
 

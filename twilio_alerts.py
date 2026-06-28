@@ -1,3 +1,10 @@
+"""
+SmartAir Alert System - Twilio Integration
+
+Monitors the Firebase database for new air quality logs and sends a Twilio
+SMS alert if the calculated AQI crosses the designated threshold.
+"""
+
 import time
 import requests
 import os
@@ -12,13 +19,16 @@ TWILIO_FROM_NUMBER = os.environ.get('TWILIO_FROM_NUMBER', '+15677492359')
 TO_PHONE_NUMBER    = os.environ.get('TO_PHONE_NUMBER',    '+919321637802')
 
 def calculate_indian_aqi(raw_value, temperature, humidity):
+    # Adjust raw MQ135 analog resistance values based on temperature and humidity offset
     temp_corr = 0.008 * (temperature - 25)
     hum_corr = 0.005 * (humidity - 50)
     factor = 1.0 + temp_corr + hum_corr
     adjusted = raw_value / factor
     
+    # Map the compensated raw value to estimated PM2.5 concentration (in ug/m3)
     conc = max(0, (adjusted - 200) * 0.11)
 
+    # Apply Indian CPCB breakpoints to calculate the final AQI value
     if conc <= 30:   aqi = (conc / 30) * 50
     elif conc <= 60: aqi = 51 + ((conc - 30) / 30) * 49
     elif conc <= 90: aqi = 101 + ((conc - 60) / 30) * 99
@@ -49,11 +59,13 @@ def monitor_loop():
     
     while True:
         try:
+            # Query Firebase for the single most recent log entry
             response = requests.get(FIREBASE_URL, timeout=10)
             data = response.json()
 
             if data:
                 key = list(data.keys())[0]
+                # Check the database key to avoid resending alerts for the same reading
                 if key != last_checked_key:
                     entry = data[key]
                     raw_aq = entry.get('AirQuality', 0)
