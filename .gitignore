@@ -1,15 +1,15 @@
-# macOS
+# ── macOS ──────────────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Node
+# ── Node ───────────────────────────────────────────────────────────────────
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Python
+# ── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -21,20 +21,20 @@ venv/
 *.egg-info/
 dist/
 build/
-*.egg
 
-# Logs
+# ── Logs ───────────────────────────────────────────────────────────────────
 *.log
-twilio.log
 
-# Environment variables
+# ── Environment / secrets ─────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
+# Arduino secrets — copy hardware/secrets.h.example → hardware/secrets.h
+hardware/secrets.h
 
-# IDE
+# ── IDE ────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 
-# OS
+# ── OS ─────────────────────────────────────────────────────────────────────
 Thumbs.db
